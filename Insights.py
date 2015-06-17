@@ -8,20 +8,35 @@ import matplotlib.pyplot as pyp
 from heapq import heappush, heappop, heapify
 import nltk
 import scipy
+import pandas
+import sqlite3
 
 def pltCitCollab(filename):
 ####read data from csv file, plot the collaboration-citation data
-  f1 = open(filename,'r+',encoding='utf-8')
-  rawdata = csv.reader(f1)
-  count = sum(1 for row in rawdata)
-  f1.close()
+  if '.csv' in filename:
+    f1 = open(filename,'r+',encoding='utf-8')
+    rawdata = csv.reader(f1)
+    count = sum(1 for row in rawdata)
+    f1.close()
 
+    f1 = open(filename,'r+',encoding='utf-8')
+    rawdata=csv.reader(f1)
+    data = Analyze.citacollab(rawdata,count)
+    f1.close()
+  elif '.sqlite' in filename:
+    conn = sqlite3.connect(filename)
+    c = conn.cursor()
+    c.execute("SELECT * FROM cleandata")
+    rows = c.fetchall()
+
+    rawdata = [list(tup) for tup in rows]
+    count = len(rawdata)
+    data = Analyze.citacollab(rawdata,count)
+  else:
+    print('File extension not recognized.')
+    return False
+  
   print(str(count)+' papers analyzed.')
-
-  f1 = open(filename,'r+',encoding='utf-8')
-  rawdata=csv.reader(f1)
-  data = Analyze.citacollab(rawdata,count)
-  f1.close()
 
   pyp.plot(data[1],data[0],'ro')
   pyp.xlabel('Citations')
@@ -32,17 +47,30 @@ def pltCitCollab(filename):
 
 def pltCitClarity(filename):
 ##read data from csv file, plot the clarity-citations data
-  f1 = open(filename,'r+',encoding='utf-8')
-  rawdata = csv.reader(f1)
-  count = sum(1 for row in rawdata)
-  f1.close()
+  if '.csv' in filename:
+    f1 = open(filename,'r+',encoding='utf-8')
+    rawdata = csv.reader(f1)
+    count = sum(1 for row in rawdata)
+    f1.close()
+    
+    f1 = open(filename,'r+',encoding='utf-8')
+    rawdata=csv.reader(f1)
+    data = Analyze.citaclarity(rawdata,count)
+    f1.close()
+  elif '.sqlite' in filename:
+    conn = sqlite3.connect(filename)
+    c = conn.cursor()
+    c.execute("SELECT * FROM cleandata")
+    rows = c.fetchall()
+
+    rawdata = [list(tup) for tup in rows]
+    count = len(rawdata)
+    data = Analyze.citaclarity(rawdata,count)
+  else:
+    print('File extension not recognized.')
+    return False
 
   print(str(count)+' papers analyzed.')
-  
-  f1 = open(filename,'r+',encoding='utf-8')
-  rawdata=csv.reader(f1)
-  data = Analyze.citaclarity(rawdata,count)
-  f1.close()
   
   pyp.plot(data[0],data[1],'ro')
   pyp.xlabel('Abstract length')
@@ -53,17 +81,36 @@ def pltCitClarity(filename):
 
 def pltCitRate(filename):
 ##read data from csv file, plot the clarity-citations data
-  f1 = open(filename,'r+',encoding='utf-8')
-  rawdata=csv.reader(f1)
-  authordict = Analyze.dictauthor(rawdata)
-  f1.close()
+  if '.csv' in filename:
+    f1 = open(filename,'r+',encoding='utf-8')
+    rawdata=csv.reader(f1)
+    authordict = Analyze.dictauthor(rawdata)
+    f1.close()
 
-  data = numpy.zeros((2,len(authordict)))
-  i=0
-  for author in authordict.keys():
-      data[0,i] = authordict[author]['NumPapers']
-      data[1,i] = authordict[author]['Citations']/authordict[author]['NumPapers']
-      i += 1
+    data = numpy.zeros((2,len(authordict)))
+    i=0
+    for author in authordict.keys():
+        data[0,i] = authordict[author]['NumPapers']
+        data[1,i] = authordict[author]['Citations']/authordict[author]['NumPapers']
+        i += 1
+  elif '.sqlite' in filename:
+    conn = sqlite3.connect(filename)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM authordict")
+
+    authorsqldict = c.fetchall()
+    data = numpy.zeros((2,len(authorsqldict)))
+    i=0
+    for author in authorsqldict:
+        if author['Citations']>5000:
+          continue
+        data[0,i] = author['NumPapers']
+        data[1,i] = author['Citations']/author['NumPapers']
+        i += 1
+  else:
+    print('File extension not recognized.')
+    return False  
       
   pyp.plot(data[0],data[1],'ro')
   pyp.xlabel('Number of papers published')
@@ -78,20 +125,40 @@ def rank(filename,criterion,num):
   if criterion not in criteria:
       print('Error: criterion can only be one of the following strings: Citations/NumPapers/Co-Authors')
       return []
-  f1 = open(filename,'r+',encoding='utf-8')
-  rawdata=csv.reader(f1)
-  authordict = Analyze.dictauthor(rawdata)
-  f1.close()
 
-  ranking = []
-  for author in authordict.keys():
-      if criterion == 'Co-Authors':
-          heappush(ranking, [-len(authordict[author][criterion]), author])
-      elif criterion == 'Citation Rate':
-          heappush(ranking, [-(authordict[author]['Citations']/authordict[author]['NumPapers']), author])
-      else:
-          heappush(ranking, [-authordict[author][criterion], author])
+  if '.csv' in filename:
+    f1 = open(filename,'r+',encoding='utf-8')
+    rawdata=csv.reader(f1)
+    authordict = Analyze.dictauthor(rawdata)
+    f1.close()
 
+    ranking = []
+    for author in authordict.keys():
+        if criterion == 'Co-Authors':
+            heappush(ranking, [-len(authordict[author][criterion]), author])
+        elif criterion == 'Citation Rate':
+            heappush(ranking, [-(authordict[author]['Citations']/authordict[author]['NumPapers']), author])
+        else:
+            heappush(ranking, [-authordict[author][criterion], author])
+  elif '.sqlite' in filename:
+    conn = sqlite3.connect(filename)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM authordict")
+
+    authorsqldict = c.fetchall()
+    ranking = []
+    for author in authorsqldict:
+        if criterion == 'Co-Authors':
+            heappush(ranking, [-len(author[criterion]), author['Author']])
+        elif criterion == 'Citation Rate':
+            heappush(ranking, [-(author['Citations']/author['NumPapers']), author['Author']])
+        else:
+            heappush(ranking, [-author[criterion], author['Author']])
+  else:
+    print('File extension not recognized.')
+    return False
+  
   bestofcriterion = []
   while len(bestofcriterion)<num:
       pick = heappop(ranking)
@@ -121,21 +188,41 @@ def cleanfile(infilename,outfilename):
   Analyze.cleanfile(rawdata,outfilename)
   f1.close()
 
+def savesql(filename, dbname):
+#save the csv data in sql db
+    conn = sqlite3.connect(dbname)
+    data = pandas.read_csv(filename)
+    table_name = re.sub('.csv','',filename)
+    data.to_sql(table_name,conn,if_exists='replace',index=False)
+
 def getauthordict(filename):
 #read file and get the authordict
-  f1 = open(filename,'r+',encoding='utf-8')
-  dictdata = csv.reader(f1)
-  authordict={}
-  for row in dictdata:
-    if row[0] == 'Author':
-      continue
-    authordict[row[0]] = {'NumPapers':row[1],'Citations':row[2],'Co-Authors':row[3],'Papers':row[4],'Keywords':row[5]}
+  if '.csv' in filename:
+    f1 = open(filename,'r+',encoding='utf-8')
+    dictdata = csv.reader(f1)
+    authordict={}
+    for row in dictdata:
+      if row[0] == 'Author':
+        continue
+      authordict[row[0]] = {'NumPapers':row[1],'Citations':row[2],'Co-Authors':row[3],'Papers':row[4],'Keywords':row[5]}
+  elif '.sqlite' in filename:
+    conn = sqlite3.connect(filename)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM authordict")
+    authorsqldict = c.fetchall()
 
+    authordict={}
+    for author in authorsqldict:
+      authordict[author['Author']] = author
+  else:
+    print('File extension not recognized.')
+    return False
   return authordict
 
 def suggestauthors(topic,num):
 #read file and find the profs closest match to rawlabel and confirm/return actual label
-  authordict = getauthordict('authordict.csv')
+  authordict = getauthordict('data.sqlite')
   ranking = []
   similars = []
 
@@ -189,15 +276,24 @@ def suggestpapers(myfilename,filename,num):
   
   return similars
 
+def main():
+  pass
+
+##  savesql('cleandata.csv','data.sqlite')
+##  savesql('authordict.csv','data.sqlite')
+  
+if __name__== "__main__":
+  main()
+
 #cleanfile('rawdata.csv','cleandata.csv')
 
-#pltCitCollab('cleandata.csv')
+#pltCitCollab('data.sqlite')
 
-#pltCitClarity('cleandata.csv')
+#pltCitClarity('data.sqlite')
 
-#pltCitRate('cleandata.csv')
+#pltCitRate('data.sqlite')
 
-#print(idauthor('cleandata.csv','kwiat'))
+#print(idauthor('data.sqlite','kwiat'))
 
 ##f1 = open('cleandata.csv','r+',encoding='utf-8')
 ##rawdata=csv.reader(f1)
@@ -211,15 +307,15 @@ def suggestpapers(myfilename,filename,num):
 ##  print(key)
 ##  print(value)
 
-#alist = rank('cleandata.csv','Citations',20)
+#alist = rank('data.sqlite','Citations',20)
 
 #alist = suggestauthors('o.pfister',10)
 
-alist = suggestauthors('optical quantum computing',10)
+##alist = suggestauthors('optical quantum computing',10)
 
 ##alist = suggestpapers('mydata.csv','cleandata.csv',10)
 ##print(alist[0][0])
 ##alist = alist[0][1]
 ##
-for element in alist:
-  print(element)
+##for element in alist:
+##  print(element)

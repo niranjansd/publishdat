@@ -9,6 +9,8 @@ from heapq import heappush, heappop
 import numpy
 import scipy
 import nltk
+import sqlite3
+import pandas
 import matplotlib.pyplot as pyp
 
 #sys.setdefaultencoding('utf8')
@@ -69,7 +71,7 @@ def cleanfile(rawdata,filename):
             headings=['url','title','authors','abstract','citations']
             writer = csv.DictWriter(csvfile, fieldnames=headings)
             writer.writerow(dicti)
-
+    
 def citacollab(rawdata,count):
 ##calculates the citations-collaboration corelation.
 ##row0 is number of co-authors or each paper
@@ -364,10 +366,8 @@ def similarauthors(author1,author2):
     score = -sum(1 for token in tokens1 if token in tokens2)
     return score
 
-def cluster():
-##read data from csv file and extract a distance metric using similarity score.
-  f1 = open('rawdata.csv','r+',encoding='utf-8')
-  rawdata = csv.reader(f1)
+def cluster(rawdata):
+## extract a distance metric using similarity score.
   papers=[]
   for paper in rawdata:
     papers.append(paper)
